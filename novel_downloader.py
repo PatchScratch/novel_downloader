@@ -1449,6 +1449,24 @@ def _bs4_prev_text(tag) -> str:
     return ""
 
 
+def _br_to_newline(el) -> None:
+    """BS4 要素配下の <br> を改行文字に置き換える（破壊的）。
+
+    html.parser は同一文書内に素の `<br>` と `<br />` が混在すると、bs4 の
+    空要素追跡（`already_closed_empty_element`）が持ち越されて後続の `<br />` を
+    「閉じ済み」と誤判定し、その `<br />` が以降の兄弟ノードをすべて子に抱えた
+    コンテナタグになる。素直に `replace_with("\\n")` すると本文が丸ごと消えるため、
+    子を持つ `<br>` は unwrap して中身を残す。
+    子を持たない場合の挙動は `replace_with("\\n")` と同一。
+    """
+    for br in el.find_all("br"):
+        if br.contents:
+            br.insert_before("\n")
+            br.unwrap()
+        else:
+            br.replace_with("\n")
+
+
 def _has_kanji(text: str) -> bool:
     """テキスト内に漢字（CJK文字）が含まれるかを返す。"""
     return any(_char_class(ch) == 0 for ch in text)
@@ -4715,12 +4733,7 @@ def alp_html_to_aozora(html: str, images: dict = None, seen: dict = None,
         return "\n\n".join(lines)
 
     # <p> がない場合は <br> を改行に変換
-    # 注意: html.parser は <br> 連続を入れ子タグ（後続本文を子に持つ）として
-    # パースすることがあるため、replace_with ではなく insert_before + unwrap で
-    # 子ノードを保持したまま改行に置き換える（replace_with だと本文が消える）
-    for br in soup.find_all("br"):
-        br.insert_before("\n")
-        br.unwrap()
+    _br_to_newline(soup)
     return soup.get_text().strip()
 
 
@@ -5295,8 +5308,7 @@ def hameln_get_work_info(soup) -> dict:
         ss_divs = maind.find_all("div", class_="ss")
         if len(ss_divs) >= 2:
             syp = ss_divs[1]
-            for br in syp.find_all("br"):
-                br.replace_with("\n")
+            _br_to_newline(syp)
             synopsis = syp.get_text().strip()
     info = {"title": title, "author": author, "description": synopsis}
     info.update(_hameln_meta_from_page(soup))
@@ -5387,8 +5399,7 @@ def hameln_html_to_aozora(honbun_div, maegaki_div=None, atogaki_div=None) -> str
 
     # 前書き（画像URLのみの行は除去）
     if maegaki_div:
-        for br in maegaki_div.find_all("br"):
-            br.replace_with("\n")
+        _br_to_newline(maegaki_div)
         maegaki_text = maegaki_div.get_text().strip()
         lines = [l for l in maegaki_text.split("\n")
                  if not re.match(r'https?://\S+$', l.strip()) and l.strip()]
@@ -5410,8 +5421,7 @@ def hameln_html_to_aozora(honbun_div, maegaki_div=None, atogaki_div=None) -> str
 
     # 後書き
     if atogaki_div:
-        for br in atogaki_div.find_all("br"):
-            br.replace_with("\n")
+        _br_to_newline(atogaki_div)
         atogaki_text = atogaki_div.get_text().strip()
         if atogaki_text:
             parts.append("【後書き】\n" + atogaki_text)
@@ -5518,8 +5528,7 @@ def run_hameln(args):
                         if (hasattr(child, "name") and child.name == "span"
                                 and "120%" in child.get("style", "")
                                 and child.get("id") != "analytics_start"):
-                            for br in child.find_all("br"):
-                                br.replace_with("\n")
+                            _br_to_newline(child)
                             lines = [l.strip() for l in child.get_text().split("\n") if l.strip()]
                             if ep_chapter and lines and lines[0] == ep_chapter:
                                 lines = lines[1:]
@@ -5774,8 +5783,7 @@ def neopage_content_to_aozora(content_html: str) -> str:
 
     # <br> を改行に変換（separator="\n" を使うと replace_with() で
     # 生成された NavigableString の境界にも改行が入ってしまうため）
-    for br in soup.find_all("br"):
-        br.replace_with("\n")
+    _br_to_newline(soup)
 
     lines = []
     for p in soup.find_all("p"):
@@ -6319,8 +6327,7 @@ def noichigo_html_to_aozora(body_div) -> str:
         else:
             ruby.replace_with(ruby.get_text())
 
-    for br in body_div.find_all("br"):
-        br.replace_with("\n")
+    _br_to_newline(body_div)
 
     lines = body_div.get_text().split("\n")
     out_lines = []
@@ -6532,8 +6539,7 @@ def berrys_get_work_info(soup) -> dict:
     synopsis_div = soup.find("div", class_="bookSummary-01")
     synopsis = ""
     if synopsis_div:
-        for br in synopsis_div.find_all("br"):
-            br.replace_with("\n")
+        _br_to_newline(synopsis_div)
         synopsis = synopsis_div.get_text(strip=True)
 
     # 総ページ数: div.bookInfo dl dd の中から "NNページ" を探す
@@ -6954,7 +6960,18 @@ def novema_get_work_info(soup) -> dict:
     synopsis_div = soup.find("div", class_="bookSummary-01")
     synopsis = synopsis_div.get_text(strip=True) if synopsis_div else ""
 
-    info = {"title": title, "author": author, "description": synopsis}
+    # 総ページ数は「ページ数／NNページ」から取る。**必ず div.bookInfo に限定する**
+    # （作品ページには推薦カードが並ぶためページ全体を検索すると別作品の値を拾う）
+    total_pages = 0
+    book_info = soup.find(class_="bookInfo")
+    if book_info:
+        m = re.search(r"([\d,]+)\s*ページ",
+                      _labeled_value(book_info.get_text("\n"), "ページ数"))
+        if m:
+            total_pages = int(m.group(1).replace(",", ""))
+
+    info = {"title": title, "author": author, "description": synopsis,
+            "total_pages": total_pages}
     info.update(_starts_meta_from_page(soup, "ノベマ！", "novema"))
     return info
 
@@ -6962,9 +6979,14 @@ def novema_get_work_info(soup) -> dict:
 def novema_get_episode_list(soup) -> list:
     """
     エピソード一覧を [(page_num, episode_title, chapter_name), ...] で返す。
+    page_num はそのエピソードの**開始ページ番号**であり、エピソード本文は次の
+    エピソードの開始ページの手前まで複数ページに分割されている（`run_novema` が
+    ページ範囲を組み立てて連結する）。
     bookChapterList の2階層構造を解析する：
       - 外側の <li> に <p> + 内側 <ul><li> がある場合: 章グループ名を chapter_name として付与
       - 外側の <li> に内側の <ul><li> がない場合: 単独エピソード（chapter_name = ""）
+        （エピソードに題が付いていない作品では内側 <ul> が空で出力されるため、
+        この分岐が章そのものをエピソードとして拾う）
     """
     chapter_list = soup.find("div", class_="bookChapterList")
     if not chapter_list:
@@ -7033,11 +7055,37 @@ def run_novema(args):
     total_eps = len(episodes)
     print(f"      エピソード数: {total_eps}")
 
+    # 1エピソードは複数ページに分割されているため総ページ数が必要。
+    # 作品ページの「ページ数」で取れなければ先頭ページの「N / M」から拾う。
+    total_pages = info.get("total_pages") or 0
+    if not total_pages:
+        _sleep(args.delay)
+        first_soup, _ = novema_fetch(
+            session, f"{_NOVEMA_BASE}/book/{work_id}/{episodes[0][0]}")
+        art = first_soup.find("article", class_="bookText")
+        aside_tag = art.find("aside") if art else None
+        p_tag = aside_tag.find("p") if aside_tag else None
+        if p_tag:
+            m = re.match(r"\d+\s*/\s*(\d+)", p_tag.get_text(strip=True))
+            if m:
+                total_pages = int(m.group(1))
+    if total_pages:
+        print(f"      総ページ数  : {total_pages}")
+
+    # エピソード範囲を構築 [(page_start, page_end, title, chapter_name), ...]
+    ep_ranges = []
+    for i, (page_start, ep_title, ep_chapter) in enumerate(episodes):
+        if i + 1 < len(episodes):
+            page_end = episodes[i + 1][0] - 1
+        else:
+            page_end = total_pages if total_pages else page_start
+        ep_ranges.append((page_start, max(page_end, page_start), ep_title, ep_chapter))
+
     start_ep = max(1, args.start or 1)
     end_ep   = min(total_eps, args.end or total_eps)
-    target_eps = episodes[start_ep - 1:end_ep]
+    target_eps = ep_ranges[start_ep - 1:end_ep]
     if getattr(args, "list_only", False):
-        _show_episode_list(info["title"], info["author"], [ep[1] for ep in target_eps])
+        _show_episode_list(info["title"], info["author"], [ep[2] for ep in target_eps])
     _dry_run_exit(args)
 
     header   = aozora_header(info["title"], info["author"], info["description"],
@@ -7055,28 +7103,33 @@ def run_novema(args):
 
     got_eps       = 0
 
-    for ep_i, (page_num, ep_title, ep_chapter) in enumerate(target_eps, 1):
-        print(f"  [{ep_i:3d}/{len(target_eps)}] {ep_title}")
-        _progress(ep_i, len(target_eps), f"{ep_title}")
-        try:
-            ep_url  = f"{_NOVEMA_BASE}/book/{work_id}/{page_num}"
-            ep_soup, _ = novema_fetch(session, ep_url)
-            art = ep_soup.find("article", class_="bookText")
-            if art:
-                aside_inner = art.find("aside")
-                if aside_inner:
-                    aside_inner.decompose()
-                body_div = art.find("div")
-                if body_div:
-                    body = noichigo_html_to_aozora(body_div)
+    for ep_i, (page_start, page_end, ep_title, ep_chapter) in enumerate(target_eps, 1):
+        print(f"  [{ep_i:3d}/{len(target_eps)}] {ep_title}（p.{page_start}–{page_end}）")
+        _progress(ep_i, len(target_eps), f"{ep_title}（p.{page_start}–{page_end}）")
+        page_bodies = []
+        for page_no in range(page_start, page_end + 1):
+            try:
+                ep_url  = f"{_NOVEMA_BASE}/book/{work_id}/{page_no}"
+                ep_soup, _ = novema_fetch(session, ep_url)
+                art = ep_soup.find("article", class_="bookText")
+                if art:
+                    aside_inner = art.find("aside")
+                    if aside_inner:
+                        aside_inner.decompose()
+                    body_div = art.find("div")
+                    if body_div:
+                        page_bodies.append(noichigo_html_to_aozora(body_div))
+                    else:
+                        page_bodies.append("（本文取得失敗）")
                 else:
-                    body = "（本文取得失敗）"
-            else:
-                body = "（本文取得失敗）"
-        except RuntimeError as e:
-            print(f"    [エラー] {e}")
-            body = "（取得失敗）"
+                    page_bodies.append("（本文取得失敗）")
+            except RuntimeError as e:
+                print(f"    [エラー] {e}")
+                page_bodies.append("（取得失敗）")
+            if page_no < page_end:
+                _sleep(args.delay)
 
+        body = "\n\n".join(b for b in page_bodies if b)
         body = normalize_tate(body)
         sec_title = aozora_chapter_title(ep_title)
         sections.append(f"{sec_title}\n\n{body}\n")
@@ -7634,8 +7687,7 @@ def days_get_work_info(soup) -> dict:
     description = ""
     synopsis_p = soup.select_one("p.readmore")
     if synopsis_p:
-        for br in synopsis_p.find_all("br"):
-            br.replace_with("\n")
+        _br_to_newline(synopsis_p)
         description = synopsis_p.get_text().strip()
 
     info = {"title": title, "author": author, "description": description}
@@ -7754,8 +7806,7 @@ def days_html_to_aozora(body_div, session=None, images: dict = None,
             ruby.replace_with(ruby.get_text())
 
     # <br> を改行に変換
-    for br in body_div.find_all("br"):
-        br.replace_with("\n")
+    _br_to_newline(body_div)
 
     text = body_div.get_text()
     lines = text.split("\n")
@@ -8083,8 +8134,7 @@ def genpaku_extract_chapters(soup, work_title: str) -> list:
             non_frag = [a for a in links if not a.get("href", "").startswith("#")]
             if links and not non_frag and len(re.sub(r"\s+", "", p_text_plain)) < 30:
                 continue
-            for br in elem.find_all("br"):
-                br.replace_with("\n")
+            _br_to_newline(elem)
             text = genpaku_ruby_to_aozora(elem.get_text().strip())
             for line in text.split("\n"):
                 current_lines.append(line.strip())
@@ -8424,8 +8474,7 @@ def hyuki_extract_episodes(soup, work_title: str) -> list:
                         current_lines.append("")
             else:
                 # テーブルなし: 通常の引用ブロック
-                for br in elem.find_all("br"):
-                    br.replace_with("\n")
+                _br_to_newline(elem)
                 text = elem.get_text().strip()
                 if text:
                     current_lines.append(text)
