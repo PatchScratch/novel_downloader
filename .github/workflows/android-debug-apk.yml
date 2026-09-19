@@ -1,0 +1,48 @@
+name: Android debug APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/english-ui]
+    paths:
+      - "android/**"
+      - "novel_downloader.py"
+      - "font/**"
+      - ".github/workflows/android-debug-apk.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Point /usr/bin/python3 at 3.12 (matches android/app/build.gradle.kts)
+        run: |
+          sudo ln -sf "$(which python3.12 || which python3)" /usr/bin/python3
+          /usr/bin/python3 --version
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Accept licenses and build debug APK
+        working-directory: android
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          chmod +x gradlew
+          ./gradlew :app:assembleDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: noveldownloader-debug
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
