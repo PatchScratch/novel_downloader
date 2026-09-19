@@ -9,7 +9,7 @@
         android:id="@+id/url_input"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="作品ページのURL"
+        android:hint="@string/url_hint"
         android:inputType="textUri"
         android:maxLines="1" />
 
@@ -24,7 +24,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="📋 貼り付け" />
+            android:text="@string/paste" />
 
         <Space
             android:layout_width="8dp"
@@ -35,7 +35,7 @@
             style="@style/Widget.Material3.Button.TextButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="✕ クリア" />
+            android:text="@string/clear" />
     </LinearLayout>
 
     <TextView
@@ -52,7 +52,7 @@
         android:layout_height="56dp"
         android:layout_marginTop="12dp"
         android:enabled="false"
-        android:text="⬇ ダウンロード"
+        android:text="@string/download"
         android:textSize="18sp" />
 
     <ProgressBar
@@ -111,7 +111,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="📖 開く" />
+                    android:text="@string/open" />
 
                 <Space
                     android:layout_width="8dp"
@@ -123,7 +123,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="📤 共有" />
+                    android:text="@string/share" />
             </LinearLayout>
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
@@ -134,7 +134,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
         android:padding="4dp"
-        android:text="▸ 詳細ログ"
+        android:text="@string/log_closed"
         android:textSize="14sp"
         android:textStyle="bold" />
 
