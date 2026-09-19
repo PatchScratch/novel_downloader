@@ -11112,13 +11112,44 @@ def run_watch(args) -> int:
     return 1 if has_error else 0
 
 
-def _build_arg_parser() -> argparse.ArgumentParser:
+def _resolve_ui_lang(argv=None) -> str:
+    """Return 'en' or 'ja' for CLI help text.
+
+    Priority: --lang / -L  >  NOVEL_DOWNLOADER_LANG  >  LANG/LC_ALL starting with en.
+    Default remains Japanese so existing users are unchanged.
+    """
+    import os as _os
+    raw = list(sys.argv[1:] if argv is None else argv)
+    for i, a in enumerate(raw):
+        if a in ("--lang", "-L") and i + 1 < len(raw):
+            v = raw[i + 1].lower()
+            return "en" if v.startswith("en") else "ja"
+        if a.startswith("--lang="):
+            v = a.split("=", 1)[1].lower()
+            return "en" if v.startswith("en") else "ja"
+    env = (_os.environ.get("NOVEL_DOWNLOADER_LANG")
+           or _os.environ.get("LC_ALL")
+           or _os.environ.get("LANG")
+           or "")
+    env = env.lower()
+    if env.startswith("en"):
+        return "en"
+    return "ja"
+
+
+def _build_arg_parser(lang: str = "ja") -> argparse.ArgumentParser:
     """CLI パーサを組み立てて返す。
 
     _main() のほか、_make_runner_args() が既定値の土台として使う。
+    lang='en' のときはヘルプ文面だけ英語にする（動作は同一）。
     """
+    en = (lang == "en")
     parser = argparse.ArgumentParser(
         description=(
+            "Downloader for Japanese web-novel sites (Syosetu, Kakuyomu, Alphapolis, and others).\n"
+            "Detects the site from the URL and writes Aozora-style text (.txt)\n"
+            "plus a vertical-writing EPUB3 (.epub)."
+            if en else
             "小説家になろう・カクヨム・アルファポリス・エブリスタ・野いちご・ハーメルン 共通ダウンローダー\n"
             "指定URLのサイトを自動判別して全話を\n"
             "青空文庫書式テキスト（.txt）と縦書きePub3（.epub）に出力します。"
@@ -11141,14 +11172,27 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--version", action="version",
                         version=f"novel_downloader {__version__}")
+    parser.add_argument("--lang", "-L", dest="lang", default=None,
+                        choices=["ja", "en"],
+                        help=("UI language for --help (ja or en). "
+                              "Also honours NOVEL_DOWNLOADER_LANG. "
+                              "Does not change downloaded novel text."
+                              if en else
+                              "ヘルプ等の表示言語（ja / en）。"
+                              "環境変数 NOVEL_DOWNLOADER_LANG でも指定可。"
+                              "作品本文の言語は変わりません。"))
     parser.add_argument("url", nargs="?", default=None,
-                        help="作品のURL（小説家になろう・カクヨム・アルファポリス・エブリスタ）"
-                             "。--from-file 指定時は省略可")
+                        help=("Work URL. Optional when --from-file / --from-epub is used."
+                              if en else
+                              "作品のURL（小説家になろう・カクヨム・アルファポリス・エブリスタ）"
+                              "。--from-file 指定時は省略可"))
     parser.add_argument("-o", "--output",
-                        help="出力ベース名（省略時は作品タイトルから自動生成）"
-                             " 例: -o mynovel → mynovel.txt / mynovel.epub")
+                        help=("Output basename (default: work title). Example: -o mynovel"
+                              if en else
+                              "出力ベース名（省略時は作品タイトルから自動生成）"
+                              " 例: -o mynovel → mynovel.txt / mynovel.epub"))
     parser.add_argument("--delay", type=float, default=1.5,
-                        help="リクエスト間隔（秒、デフォルト: 1.5）")
+                        help="Request interval in seconds (default: 1.5)" if en else "リクエスト間隔（秒、デフォルト: 1.5）")
     parser.add_argument("--resume", dest="resume", nargs="?", const=0, type=int,
                         default=None, metavar="N",
                         help="続きからダウンロード。"
@@ -11265,7 +11309,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
 
 
 def _main(argv=None):
-    parser = _build_arg_parser()
+    parser = _build_arg_parser(_resolve_ui_lang(argv))
     args = parser.parse_args(argv)
 
     # ── --list-sites: 対応サイト一覧（GUI用・読み取り専用・オフライン） ──
