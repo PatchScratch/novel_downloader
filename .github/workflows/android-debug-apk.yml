@@ -29,17 +29,18 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Point /usr/bin/python3 at 3.12
-        run: |
-          sudo ln -sf "$(which python3.12 || which python3)" /usr/bin/python3
-          /usr/bin/python3 --version
-
       - name: Write local.properties
         run: echo "sdk.dir=$ANDROID_HOME" > android/local.properties
 
       - name: Build debug APK
         working-directory: android
+        env:
+          NOVEL_BUILD_PYTHON: ${{ env.pythonLocation }}/bin/python3
         run: |
+          PY="${NOVEL_BUILD_PYTHON}"
+          if [ ! -x "$PY" ]; then PY="$(which python3.12 || which python3)"; fi
+          export NOVEL_BUILD_PYTHON="$PY"
+          "$PY" --version
           chmod +x gradlew
           ./gradlew :app:assembleDebug --no-daemon --stacktrace
 
