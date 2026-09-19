@@ -4,17 +4,12 @@ plugins {
     id("com.chaquo.python")
 }
 
-// APK バージョンは novel_downloader のリリース版数に一致させる（版数の二重管理を回避）。
-// 版数の単一ソースは本体 novel_downloader.py の __version__。
-//   優先1: -PappVersion=X.Y.Z（scripts/release.sh がリリース時に渡す）
-//   優先2: リポジトリ直下 novel_downloader.py の __version__（手動/開発ビルド時）
-// versionCode は semver から単調増加する整数を合成（minor/patch < 100 が前提）。
 val appVersion: String = run {
     val prop = (project.findProperty("appVersion") as String?)?.removePrefix("v")?.trim()
     if (!prop.isNullOrEmpty()) return@run prop
     val pyFile = rootProject.projectDir.parentFile.resolve("novel_downloader.py")
     if (pyFile.exists()) {
-        Regex("""__version__\s*=\s*["']([^"']+)["']""")
+        Regex("""__version__\\s*=\\s*[\"']([^\"']+)[\"']""")
             .find(pyFile.readText())?.groupValues?.get(1)?.let { return@run it }
     }
     "0.0.0"
@@ -22,12 +17,6 @@ val appVersion: String = run {
 val appVerParts: List<Int> =
     (appVersion.split(".") + listOf("0", "0", "0")).take(3).map { it.toIntOrNull() ?: 0 }
 
-// リリース署名鍵。Android Developer Console に登録した鍵で署名するため、debug 鍵とは分ける。
-// 鍵の場所とパスワードはリポジトリに置かず、次の優先順で解決する:
-//   優先1: 環境変数  NOVEL_KEYSTORE / NOVEL_KEYSTORE_PASSWORD / NOVEL_KEY_ALIAS / NOVEL_KEY_PASSWORD
-//   優先2: ~/.gradle/gradle.properties の novelStoreFile / novelStorePassword / novelKeyAlias / novelKeyPassword
-// 未設定なら release 用 signingConfig を作らない（未署名で失敗させ、
-// debug 鍵の APK をそのまま野良配布してしまう事故を構造的に防ぐ）。
 fun signingSecret(env: String, prop: String): String? =
     (System.getenv(env) ?: project.findProperty(prop) as String?)?.trim()?.takeIf { it.isNotEmpty() }
 
@@ -51,7 +40,6 @@ android {
         versionName = appVersion
 
         ndk {
-            // 配布対象は実機スマホのみなので arm64 に絞って APK を小さくする
             abiFilters += listOf("arm64-v8a")
         }
     }
@@ -59,7 +47,6 @@ android {
     signingConfigs {
         if (hasReleaseSigning) {
             create("release") {
-                // "~/..." は Gradle が展開しないので自前でホームに置換する
                 storeFile =
                     file(releaseStorePath!!.replaceFirst("~", System.getProperty("user.home")))
                 storePassword = releaseStorePassword
@@ -71,7 +58,6 @@ android {
 
     buildTypes {
         getByName("release") {
-            // Chaquopy の Python 側がリフレクション経由で触るクラスを削らせない
             isMinifyEnabled = false
             if (hasReleaseSigning) {
                 signingConfig = signingConfigs.getByName("release")
@@ -99,9 +85,13 @@ dependencies {
 
 chaquopy {
     defaultConfig {
-        // buildPython と同じマイナーバージョンであること（WSL の python3 は 3.12）
         version = "3.12"
-        buildPython("/usr/bin/python3")
+        val overridePy = System.getenv("NOVEL_BUILD_PYTHON")?.trim().orEmpty()
+        if (overridePy.isNotEmpty()) {
+            buildPython(overridePy)
+        } else {
+            buildPython("/usr/bin/python3")
+        }
         pip {
             install("requests")
             install("beautifulsoup4")
@@ -110,8 +100,6 @@ chaquopy {
     }
 }
 
-// リポジトリ直下の本体スクリプトと表紙用フォントをビルド時に同梱する。
-// コピー先は .gitignore 済み（原本はリポジトリ直下で一元管理）。
 val syncNovelDownloader by tasks.registering(Copy::class) {
     from("../../novel_downloader.py")
     into("src/main/python")
@@ -126,8 +114,6 @@ tasks.named("preBuild") {
     dependsOn(syncNovelDownloader, syncCoverFont)
 }
 
-// コピー先（src/main/python・src/main/assets）を入力に取るタスクへ明示依存を張る
-// （Gradle 8 の implicit-dependency 検証対策）
 tasks.matching {
     it.name.contains("PythonSources") || it.name.contains("Assets")
 }.configureEach {
