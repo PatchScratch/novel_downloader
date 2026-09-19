@@ -14,6 +14,9 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
     steps:
       - uses: actions/checkout@v4
 
@@ -26,19 +29,19 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Point /usr/bin/python3 at 3.12 (matches android/app/build.gradle.kts)
+      - name: Point /usr/bin/python3 at 3.12
         run: |
           sudo ln -sf "$(which python3.12 || which python3)" /usr/bin/python3
           /usr/bin/python3 --version
 
-      - uses: android-actions/setup-android@v3
+      - name: Write local.properties
+        run: echo "sdk.dir=$ANDROID_HOME" > android/local.properties
 
-      - name: Accept licenses and build debug APK
+      - name: Build debug APK
         working-directory: android
         run: |
-          yes | sdkmanager --licenses >/dev/null || true
           chmod +x gradlew
-          ./gradlew :app:assembleDebug --no-daemon
+          ./gradlew :app:assembleDebug --no-daemon --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
