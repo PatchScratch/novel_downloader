@@ -11115,8 +11115,8 @@ def run_watch(args) -> int:
 def _resolve_ui_lang(argv=None) -> str:
     """Return 'en' or 'ja' for CLI help text.
 
-    Priority: --lang / -L  >  NOVEL_DOWNLOADER_LANG  >  LANG/LC_ALL starting with en.
-    Default remains Japanese so existing users are unchanged.
+    Priority: --lang / -L  >  NOVEL_DOWNLOADER_LANG  >  ja.
+    LANG / LC_ALL are ignored so an English locale does not change the default.
     """
     import os as _os
     raw = list(sys.argv[1:] if argv is None else argv)
@@ -11127,15 +11127,10 @@ def _resolve_ui_lang(argv=None) -> str:
         if a.startswith("--lang="):
             v = a.split("=", 1)[1].lower()
             return "en" if v.startswith("en") else "ja"
-    env = (_os.environ.get("NOVEL_DOWNLOADER_LANG")
-           or _os.environ.get("LC_ALL")
-           or _os.environ.get("LANG")
-           or "")
-    env = env.lower()
+    env = (_os.environ.get("NOVEL_DOWNLOADER_LANG") or "").lower()
     if env.startswith("en"):
         return "en"
     return "ja"
-
 
 def _build_arg_parser(lang: str = "ja") -> argparse.ArgumentParser:
     """CLI パーサを組み立てて返す。
