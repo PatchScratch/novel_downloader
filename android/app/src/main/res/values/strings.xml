@@ -1,4 +1,37 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">小説ダウンローダー</string>
+    <string name="url_hint">作品ページのURL</string>
+    <string name="paste">📋 貼り付け</string>
+    <string name="clear">✕ クリア</string>
+    <string name="download">⬇ ダウンロード</string>
+    <string name="cancel">⏸ 中止</string>
+    <string name="open">📖 開く</string>
+    <string name="share">📤 共有</string>
+    <string name="log_closed">▸ 詳細ログ</string>
+    <string name="log_open">▾ 詳細ログ</string>
+    <string name="settings">設定</string>
+    <string name="settings_title">設定（次のダウンロードから適用）</string>
+    <string name="setting_horizontal">横書きにする</string>
+    <string name="setting_kobo">Kobo用拡張子 (.kepub.epub)</string>
+    <string name="setting_site_cover">サイトの表紙画像を使う</string>
+    <string name="setting_save_txt">テキスト (.txt) も保存する</string>
+    <string name="close">閉じる</string>
+    <string name="python_init">Python 初期化中…</string>
+    <string name="toast_no_url">クリップボードにURLがありません</string>
+    <string name="toast_no_write">保存権限がないためダウンロードできません</string>
+    <string name="toast_no_reader">ePubリーダーアプリをインストールしてください</string>
+    <string name="badge_error">⚠ 判定エラー</string>
+    <string name="badge_hameln">⚠ ハーメルンはアプリ版では非対応です</string>
+    <string name="badge_short">🔗 サイト未判定（短縮URLなら実行時に展開されます）</string>
+    <string name="badge_unsupported">⚠ 未対応のURLです</string>
+    <string name="progress_chapters">%1$d / %2$d 話</string>
+    <string name="notif_channel">ダウンロード</string>
+    <string name="notif_preparing">準備中…</string>
+    <string name="status_cancelled">中止しました</string>
+    <string name="status_failed">❌ 失敗（詳細ログ参照）</string>
+    <string name="status_done">✅ 完了: %1$s（ダウンロードフォルダ）</string>
+    <string name="log_app_error">[アプリ内エラー] %1$s</string>
+    <string name="log_no_epub">[アプリ内エラー] 保存対象の .epub がありません</string>
+    <string name="log_save_fail">[アプリ内エラー] 保存失敗: %1$s: %2$s</string>
 </resources>

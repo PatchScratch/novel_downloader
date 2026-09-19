@@ -1,4 +1,37 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Novel Downloader</string>
+    <string name="url_hint">Work page URL</string>
+    <string name="paste">📋 Paste</string>
+    <string name="clear">✕ Clear</string>
+    <string name="download">⬇ Download</string>
+    <string name="cancel">⏸ Cancel</string>
+    <string name="open">📖 Open</string>
+    <string name="share">📤 Share</string>
+    <string name="log_closed">▸ Details</string>
+    <string name="log_open">▾ Details</string>
+    <string name="settings">Settings</string>
+    <string name="settings_title">Settings (apply to the next download)</string>
+    <string name="setting_horizontal">Horizontal layout</string>
+    <string name="setting_kobo">Kobo extension (.kepub.epub)</string>
+    <string name="setting_site_cover">Use the site cover image</string>
+    <string name="setting_save_txt">Also save text (.txt)</string>
+    <string name="close">Close</string>
+    <string name="python_init">Starting Python…</string>
+    <string name="toast_no_url">No URL on the clipboard</string>
+    <string name="toast_no_write">Cannot download without storage permission</string>
+    <string name="toast_no_reader">Install an EPUB reader app</string>
+    <string name="badge_error">⚠ Detection error</string>
+    <string name="badge_hameln">⚠ Hameln is not supported in the app</string>
+    <string name="badge_short">🔗 Site not detected (short URLs expand at run time)</string>
+    <string name="badge_unsupported">⚠ Unsupported URL</string>
+    <string name="progress_chapters">%1$d / %2$d chapters</string>
+    <string name="notif_channel">Downloads</string>
+    <string name="notif_preparing">Preparing…</string>
+    <string name="status_cancelled">Cancelled</string>
+    <string name="status_failed">❌ Failed (see the detail log)</string>
+    <string name="status_done">✅ Done: %1$s (Downloads folder)</string>
+    <string name="log_app_error">[app error] %1$s</string>
+    <string name="log_no_epub">[app error] No .epub file to save</string>
+    <string name="log_save_fail">[app error] Save failed: %1$s: %2$s</string>
 </resources>
