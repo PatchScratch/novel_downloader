@@ -18,11 +18,6 @@ import org.json.JSONObject
 import java.io.File
 import kotlin.concurrent.thread
 
-/**
- * ダウンロード実行用 Foreground Service。
- * 同時実行は 1 件のみ（実行中の開始要求は無視）。
- * 完了後、staging の .epub を Download/小説ダウンローダー/ へコピーする。
- */
 class DownloadService : Service() {
 
     companion object {
@@ -43,19 +38,18 @@ class DownloadService : Service() {
     override fun onCreate() {
         super.onCreate()
         val channel = NotificationChannel(
-            CHANNEL_ID, "ダウンロード", NotificationManager.IMPORTANCE_LOW)
+            CHANNEL_ID, getString(R.string.notif_channel), NotificationManager.IMPORTANCE_LOW)
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when {
             intent?.action == ACTION_CANCEL -> {
-                // GIL 待ちで ANR にならないようワーカーから呼ぶ
                 thread { PyBridge.module.callAttr("cancel") }
             }
             intent?.getStringExtra(EXTRA_URL) != null && !running -> {
                 running = true
-                val notif = buildProgressNotification("準備中…", 0, 0)
+                val notif = buildProgressNotification(getString(R.string.notif_preparing), 0, 0)
                 if (Build.VERSION.SDK_INT >= 29) {
                     startForeground(NOTIF_ID_PROGRESS, notif,
                         ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
@@ -68,8 +62,6 @@ class DownloadService : Service() {
         }
         return START_NOT_STICKY
     }
-
-    // ── ダウンロード本体（ワーカースレッド） ──────────────────────
 
     private fun work(url: String) {
         DownloadState.reset()
@@ -92,7 +84,7 @@ class DownloadService : Service() {
                 .put("use_site_cover", prefs.getBoolean("use_site_cover", false))
             PyBridge.module.callAttr("run", url, opts.toString(), listener).toInt()
         } catch (e: Exception) {
-            DownloadState.appendLog("[アプリ内エラー] $e")
+            DownloadState.appendLog(getString(R.string.log_app_error, e.toString()))
             1
         }
 
@@ -101,19 +93,19 @@ class DownloadService : Service() {
                 val saved = staging.listFiles { f ->
                     f.name.endsWith(".epub") || (saveTxt && f.name.endsWith(".txt"))
                 }.orEmpty()
-                    .sortedBy { !it.name.endsWith(".epub") }  // 完了カードの先頭は epub
+                    .sortedBy { !it.name.endsWith(".epub") }
                     .mapNotNull { saveToDownloads(it) }
                 if (saved.isEmpty()) {
-                    DownloadState.appendLog("[アプリ内エラー] 保存対象の .epub がありません")
-                    finish(DownloadState.Phase.ERROR, "❌ 失敗（詳細ログ参照）")
+                    DownloadState.appendLog(getString(R.string.log_no_epub))
+                    finish(DownloadState.Phase.ERROR, getString(R.string.status_failed))
                 } else {
                     DownloadState.ui.value = DownloadState.ui.value.copy(savedFiles = saved)
                     finish(DownloadState.Phase.DONE,
-                        "✅ 完了: ${saved.joinToString { it.name }}（ダウンロードフォルダ）")
+                        getString(R.string.status_done, saved.joinToString { it.name }))
                 }
             }
-            130 -> finish(DownloadState.Phase.CANCELLED, "中止しました")
-            else -> finish(DownloadState.Phase.ERROR, "❌ 失敗（詳細ログ参照）")
+            130 -> finish(DownloadState.Phase.CANCELLED, getString(R.string.status_cancelled))
+            else -> finish(DownloadState.Phase.ERROR, getString(R.string.status_failed))
         }
 
         staging.deleteRecursively()
@@ -134,13 +126,10 @@ class DownloadService : Service() {
         getSystemService(NotificationManager::class.java).notify(NOTIF_ID_RESULT, notif)
     }
 
-    /** 通知タップでメイン画面を開く PendingIntent。 */
     private fun openAppIntent(): PendingIntent =
         PendingIntent.getActivity(
             this, 0, Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-
-    // ── Python からのコールバック受け口 ──────────────────────────
 
     inner class Listener {
         fun onLine(text: String) {
@@ -158,7 +147,8 @@ class DownloadService : Service() {
             if (now - lastNotified > 900) {
                 lastNotified = now
                 getSystemService(NotificationManager::class.java).notify(
-                    NOTIF_ID_PROGRESS, buildProgressNotification("$n / $total 話", n, total))
+                    NOTIF_ID_PROGRESS,
+                    buildProgressNotification(getString(R.string.progress_chapters, n, total), n, total))
             }
         }
 
@@ -173,8 +163,6 @@ class DownloadService : Service() {
         }
     }
 
-    // ── 通知・保存ユーティリティ ─────────────────────────────────
-
     private fun buildProgressNotification(text: String, n: Int, total: Int) =
         NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_sys_download)
@@ -186,7 +174,6 @@ class DownloadService : Service() {
             .setProgress(if (total > 0) total else 0, n, total <= 0)
             .build()
 
-    /** staging のファイルを公開 Downloads へコピーし、開く/共有に使える SavedFile を返す。 */
     private fun saveToDownloads(file: File): DownloadState.SavedFile? {
         val mime = when {
             file.name.endsWith(".epub") -> "application/epub+zip"
@@ -224,7 +211,7 @@ class DownloadService : Service() {
                 DownloadState.SavedFile(dst.name, uri.toString(), mime)
             }
         } catch (e: Exception) {
-            DownloadState.appendLog("[アプリ内エラー] 保存失敗: ${file.name}: $e")
+            DownloadState.appendLog(getString(R.string.log_save_fail, file.name, e.toString()))
             null
         }
     }
