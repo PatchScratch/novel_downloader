@@ -19,7 +19,7 @@ python novel_downloader.py --help
 
 Windows GUI (`novel_downloader_gui.py`): use the **Japanese / English** control in the top-right corner. The choice is stored in the GUI settings file.
 
-Android follows the device language for the application name (`values-en/strings.xml`).
+`--lang` / `NOVEL_DOWNLOADER_LANG` select the UI language. `LANG` / `LC_ALL` are ignored so an English locale does not change the Japanese default.
 
 ## Supported sites
 
