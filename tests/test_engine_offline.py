@@ -56,6 +56,36 @@ def main() -> int:
            (ConnectionResetError("x"), TimeoutError("x"), IsADirectoryError("x"),
             RuntimeError("x"), N.URLError("x"))))
 
+    # ── AWS WAF のブラウザ確認（ノベルアップ＋・2026-10〜）──
+    class _Resp:
+        def __init__(self, code, text="", headers=None):
+            self.status_code, self.text = code, text
+            self.headers = headers or {}
+
+    class _Sess:
+        def __init__(self, resp):
+            self.resp, self.calls = resp, 0
+
+        def get(self, url, timeout=None):
+            self.calls += 1
+            return self.resp
+
+    waf = _Resp(202, "", {"x-amzn-waf-action": "challenge"})
+    ck("WAF ヘッダーでチャレンジと判定", N._is_waf_challenge(waf) is True)
+    ck("ヘッダーが無くても 202＋確認スクリプトなら判定",
+       N._is_waf_challenge(_Resp(202, "window.gokuProps = {}")) is True)
+    ck("通常の 200 はチャレンジでない",
+       N._is_waf_challenge(_Resp(200, "<html>本文</html>")) is False)
+    sess = _Sess(waf)
+    try:
+        N.novelup_fetch(sess, "https://novelup.plus/story/1")
+        msg = ""
+    except RuntimeError as e:
+        msg = N._friendly_error(e)
+    ck("WAF なら理由を名指しした『エラー: 』1 行で止まる",
+       msg.startswith("エラー: ") and "AWS WAF" in msg, msg)
+    ck("WAF は再試行しない（通らないので待つだけ無駄）", sess.calls == 1, str(sess.calls))
+
     # ── なろうの短編判定（design_gui_v2 §8.14 の前提）──
     ck("本文があれば短編とみなす",
        N.narou_looks_like_tanpen('<div class="p-novel__text">本文</div>') is True)

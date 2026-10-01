@@ -390,6 +390,8 @@ _MESSAGES_EN = {
         "Error: downloading from Project Sugita Genpaku requires requests and beautifulsoup4.",
     "エラー: 作品が見つかりません（HTTP 404）。URLを確認してください: {url}":
         "Error: Work not found (HTTP 404). Check the URL: {url}",
+    "ノベルアップ＋がブラウザ確認（AWS WAF）を導入したため、このツールからは取得できません: {url}":
+        "Novel Up Plus now requires a browser check (AWS WAF), so this tool cannot download from it: {url}",
     "エラー: 作品トップページへのリンクが見つかりません。作品URLを直接指定してください。":
         "Error: could not find a link to the work's top page. Please pass the work URL directly.",
     "エラー: 取得に失敗しました（HTTP {code} {reason}）: {url}":
@@ -7876,12 +7878,36 @@ _NOVELUP_HEADERS = {
 }
 
 
+def _is_waf_challenge(resp) -> bool:
+    """AWS WAF のブラウザ確認（JavaScript チャレンジ）が返ってきたかを判定する。
+
+    チャレンジは HTTP 202 で返るため raise_for_status() を素通りし、
+    本文の無いページを解析して「一覧を取得できない」と誤った理由で止まる。
+    requests では通過できない（JS が発行する aws-waf-token が要る）ので、
+    リトライせずに理由を明示して止めるために使う。
+    """
+    if resp.headers.get("x-amzn-waf-action", "").lower() == "challenge":
+        return True
+    return resp.status_code == 202 and ("awswaf" in resp.text or "gokuProps" in resp.text)
+
+
 def novelup_fetch(session, url, retries=3):
     """ノベルアップ＋のページを取得して (BeautifulSoup, html) を返す。"""
     _check_abort()
     for attempt in range(retries):
         try:
             resp = session.get(url, timeout=30)
+        except Exception as e:
+            if attempt == retries - 1:
+                raise RuntimeError(f"取得失敗: {url} — {e}") from e
+            _sleep(2)
+            continue
+        # 2026-10 からサイト全体が AWS WAF の後ろに入った。再試行しても通らない
+        if _is_waf_challenge(resp):
+            raise RuntimeError(T(
+                "ノベルアップ＋がブラウザ確認（AWS WAF）を導入したため、"
+                "このツールからは取得できません: {url}").format(url=url))
+        try:
             resp.raise_for_status()
             resp.encoding = resp.apparent_encoding or "utf-8"
             return BeautifulSoup(resp.text, "html.parser"), resp.text
