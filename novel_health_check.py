@@ -117,7 +117,7 @@ _EPISODE_PATTERNS = [
     re.compile(r"(\d+)\s*話を検出"),                   # カクヨム fallback
     re.compile(r"章数\s*[：:]\s*(\d+)"),               # genpaku / hyuki
     re.compile(r"エピソード数[：:]\s*(\d+)"),          # monogatary / ネオページ / ソリスピア
-                                                       # ノベマ！ / ノベルアップ＋ / ステキブンゲイ / NOVEL DAYS
+                                                       # ノベマ！ / ステキブンゲイ / NOVEL DAYS
     re.compile(r"チャプター数[：:]\s*(\d+)"),          # 野いちご
     re.compile(r"総ページ数\s*[：:]\s*(\d+)"),         # エブリスタ / berry's cafe
     re.compile(r"(\d+)\s*話のデータが見つかりました"), # 汎用

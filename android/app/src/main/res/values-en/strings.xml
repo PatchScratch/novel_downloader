@@ -32,6 +32,7 @@
     <string name="main_badge_hameln">⚠ Hameln is not supported in the app</string>
     <string name="main_badge_unknown">🔗 Site unknown (short URLs are expanded at run time)</string>
     <string name="main_badge_unsupported">⚠ Unsupported URL</string>
+    <string name="main_badge_retired">⚠ Support for %1$s has ended (the site stops non-browser access with a human check). Please read it in your browser</string>
     <string name="main_toast_no_clipboard_url">No URL in the clipboard</string>
     <string name="main_err_no_write_permission">Cannot download without storage permission</string>
 

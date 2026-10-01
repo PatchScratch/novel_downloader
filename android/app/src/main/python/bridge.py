@@ -26,10 +26,14 @@ def detect(url: str) -> str:
     オフライン・即時。短縮URL展開はしない（本体 main() が実行時に展開する）。
     """
     res = {"schema": 1, "site": None, "display_name": None,
-           "needs_playwright": False, "normalized_url": None}
+           "needs_playwright": False, "normalized_url": None,
+           "retired": False}
     try:
         site = nd.detect_site(url)
-        if site != "unknown" and site in nd._SITE_DISPATCH:
+        if site in nd._RETIRED_SITES:
+            # サポートを終えたサイト。site は null のまま（＝押せない）
+            res.update(display_name=nd._RETIRED_SITES[site][0], retired=True)
+        elif site != "unknown" and site in nd._SITE_DISPATCH:
             # normalize_url は話数URLで [情報]… を print するため stdout を抑制
             with contextlib.redirect_stdout(io.StringIO()):
                 norm = nd.normalize_url(url, site)

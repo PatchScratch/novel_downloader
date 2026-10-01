@@ -35,6 +35,7 @@
     <string name="main_badge_hameln">⚠ ハーメルンはアプリ版では非対応です</string>
     <string name="main_badge_unknown">🔗 サイト未判定（短縮URLなら実行時に展開されます）</string>
     <string name="main_badge_unsupported">⚠ 未対応のURLです</string>
+    <string name="main_badge_retired">⚠ %1$sはサポートを終了しました（運営が人間以外のアクセスを確認で止めているため）。ブラウザでお読みください</string>
     <string name="main_toast_no_clipboard_url">クリップボードにURLがありません</string>
     <string name="main_err_no_write_permission">保存権限がないためダウンロードできません</string>
 

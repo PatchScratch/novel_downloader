@@ -8,6 +8,7 @@ import contextlib
 import io
 import json
 import os
+import subprocess
 import sys
 import tempfile
 
@@ -56,35 +57,48 @@ def main() -> int:
            (ConnectionResetError("x"), TimeoutError("x"), IsADirectoryError("x"),
             RuntimeError("x"), N.URLError("x"))))
 
-    # ── AWS WAF のブラウザ確認（ノベルアップ＋・2026-10〜）──
-    class _Resp:
-        def __init__(self, code, text="", headers=None):
-            self.status_code, self.text = code, text
-            self.headers = headers or {}
-
-    class _Sess:
-        def __init__(self, resp):
-            self.resp, self.calls = resp, 0
-
-        def get(self, url, timeout=None):
-            self.calls += 1
-            return self.resp
-
-    waf = _Resp(202, "", {"x-amzn-waf-action": "challenge"})
-    ck("WAF ヘッダーでチャレンジと判定", N._is_waf_challenge(waf) is True)
-    ck("ヘッダーが無くても 202＋確認スクリプトなら判定",
-       N._is_waf_challenge(_Resp(202, "window.gokuProps = {}")) is True)
-    ck("通常の 200 はチャレンジでない",
-       N._is_waf_challenge(_Resp(200, "<html>本文</html>")) is False)
-    sess = _Sess(waf)
-    try:
-        N.novelup_fetch(sess, "https://novelup.plus/story/1")
-        msg = ""
-    except RuntimeError as e:
-        msg = N._friendly_error(e)
-    ck("WAF なら理由を名指しした『エラー: 』1 行で止まる",
-       msg.startswith("エラー: ") and "AWS WAF" in msg, msg)
-    ck("WAF は再試行しない（通らないので待つだけ無駄）", sess.calls == 1, str(sess.calls))
+    # ── サポートを終えたサイト（ノベルアップ＋・v2.18.0〜）──
+    nu = "https://novelup.plus/story/805623797"
+    ck("ノベルアップ＋は判定はする（未対応と区別するため）",
+       N.detect_site(nu) == "novelup")
+    ck("ダウンロード対象からは外れている", "novelup" not in N._SITE_DISPATCH)
+    msg = N._retired_site_message("novelup")
+    ck("案内は『エラー: 』で始まる（GUI が拾う契約）", msg.startswith("エラー: "), msg)
+    ck("案内は終了と理由を伝える",
+       "サポートを終了" in msg and "CAPTCHA" in msg and "ブラウザ" in msg, msg)
+    ck("手元の .txt から作り直すときの表紙色は残す",
+       N._SITE_COLOR_BY_LABEL.get("ノベルアップ＋") == "#0CBF97")
+    # --detect-site は stdout.buffer に直接書くので、GUI と同じくサブプロセスで呼ぶ
+    out = subprocess.run([sys.executable, N.__file__, "--detect-site", nu],
+                         capture_output=True, text=True, encoding="utf-8").stdout
+    info = json.loads(out.strip().splitlines()[-1])
+    ck("--detect-site: site は null（取得させない）", info["site"] is None)
+    ck("--detect-site: retired と表示名を返す",
+       info["retired"] is True and info["display_name"] == "ノベルアップ＋", str(info))
+    err = io.StringIO()
+    code = None
+    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+        try:
+            N._main([nu])
+        except SystemExit as e:
+            code = e.code
+    ck("URL を渡すと終了コード 1", code == 1, str(code))
+    ck("URL を渡すと stderr にサポート終了の案内", "サポートを終了" in err.getvalue(),
+       err.getvalue())
+    with tempfile.TemporaryDirectory() as d:
+        p = make_work_txt(d, "nu.txt", "作品N", "n0001aa", episodes=2)
+        with open(p, encoding="utf-8") as fp:
+            body = fp.read()
+        with open(p, "w", encoding="utf-8") as fp:
+            fp.write(body.replace("https://ncode.syosetu.com/n0001aa/", nu))
+        with contextlib.redirect_stdout(io.StringIO()):
+            r = N._check_update_one(p, 0)
+        ck("一括確認はサポート終了を理由に通信せず止まる",
+           "サポートを終了" in (r.get("error") or ""), str(r))
+        rows = N.shelf_scan(d)
+        ck("本棚には配信元を出すが site は null",
+           rows and rows[0]["display_name"] == "ノベルアップ＋" and rows[0]["site"] is None,
+           str(rows))
 
     # ── なろうの短編判定（design_gui_v2 §8.14 の前提）──
     ck("本文があれば短編とみなす",
@@ -186,7 +200,7 @@ def main() -> int:
 
     # ── 一覧の行番号を --start に渡せるサイトか（§8.19）──
     for site in ("narou", "kakuyomu", "alphapolis", "hameln", "monogatary",
-                 "novelup", "sutekibungei", "days", "solispia", "novema",
+                 "sutekibungei", "days", "solispia", "novema",
                  "neopage", "noichigo", "berrys"):
         ck(f"行番号を渡せる: {site}", N.start_from_list_ok(site) is True)
     for site in ("estar", "genpaku", "hyuki", "aozora"):

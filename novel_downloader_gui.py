@@ -189,6 +189,13 @@ UI = {
         "⚠ このサイトには対応していません\nURLが正しいか、対応しているサイトかをご確認ください。",
         "⚠ This site is not supported\nCheck the URL and the supported-site list.",
     ),
+    "err_retired": (
+        "⚠ {name}はサポートを終了しました\n運営が人間以外のアクセスを確認（CAPTCHA）で"
+        "止めているため、自動ダウンロードは行いません。作品はブラウザでお読みください。",
+        "⚠ Support for {name} has ended\nThe site now stops non-browser access with a "
+        "human check (CAPTCHA), so this tool no longer downloads from it. "
+        "Please read the work in your browser.",
+    ),
     "err_hameln": (
         "⚠ 取得できませんでした\nこのサイトの取得には playwright の導入が必要です。",
         "⚠ Download failed\nThis site needs playwright to be installed.",
@@ -216,6 +223,7 @@ UI = {
     "detecting": ("判定中…", "Checking…"),
     "site_ok": ("✓ {name}", "✓ {name}"),
     "site_ng": ("✗ このサイトには対応していません", "✗ This site is not supported"),
+    "site_retired": ("✗ {name}はサポートを終了しました", "✗ Support for {name} has ended"),
     "site_pw": ("⚠ {name}（playwright が必要・時間がかかります）",
                 "⚠ {name} (needs playwright; this will be slow)"),
     "stage1": ("作品情報を取得中…", "Fetching work info…"),
@@ -245,6 +253,7 @@ UI = {
     "q_done": ("完了", "Done"),
     "q_error": ("失敗", "Failed"),
     "q_skipped": ("未対応のサイト", "Unsupported site"),
+    "q_retired": ("サポート終了", "Support ended"),
     "q_aborted": ("中止", "Cancelled"),
     "q_progress": ("第 {n} 話 / 全 {m} 話", "{n} / {m}"),
     "resume": ("↓ 再開", "↓ Resume"),
@@ -278,6 +287,7 @@ UI = {
     "inbox_movefail": ("[受信箱] {name} を移動できませんでした（次回に持ち越します）",
                        "[inbox] could not move {name} (will retry next time)"),
     "inbox_ng":     ("未対応のサイト", "Unsupported site"),
+    "inbox_retired": ("サポート終了", "Support ended"),
     "inbox_scanned": ("　最終確認 {t}", "  last checked {t}"),
     "inbox_scan_min": ("受信箱を見に行く間隔（分・0で無効）",
                        "Check the inbox every N minutes (0 = off)"),
@@ -2404,7 +2414,9 @@ class NovelDownloaderApp(ctk.CTk):
             if it["checking"]:
                 state = self._t("inbox_checking")
             elif it.get("unsupported"):
-                state = self._t("inbox_ng")
+                state = self._t("inbox_retired"
+                                if (it.get("site_info") or {}).get("retired")
+                                else "inbox_ng")
             elif it["have"]:
                 state = self._t("inbox_have")
             elif it["total"]:
@@ -2713,7 +2725,7 @@ class NovelDownloaderApp(ctk.CTk):
         return ""
 
     def _set_state_error(self, kind: str):
-        """kind: 'unsupported' | 'hameln' | 'failed'"""
+        """kind: 'unsupported' | 'retired' | 'hameln' | 'failed'"""
         self.btn_main.configure(text=self._t("retry"), state="normal")
         self._set_url_entry_enabled(True)
         self.bar.stop()
@@ -2722,6 +2734,11 @@ class NovelDownloaderApp(ctk.CTk):
         if kind == "unsupported":
             msg = self._t("err_unsupported")
             self._show_aux(self.btn_sites)
+        elif kind == "retired":
+            job = self._current_job() or {}
+            name = ((job.get("info") or self._site_info or {}).get("display_name")
+                    or "")
+            msg = self._t("err_retired", name=name)
         else:
             msg = self._t("err_hameln") if kind == "hameln" else self._t("err_failed")
             detail = self._error_detail()
@@ -3076,7 +3093,11 @@ class NovelDownloaderApp(ctk.CTk):
         job["info"] = info or {}
         if is_unsupported(info):
             job["status"] = "skipped"
-            job["detail"] = self._t("q_skipped")
+            if info.get("retired"):
+                job["detail"] = self._t("q_retired")
+                job["err_kind"] = "retired"
+            else:
+                job["detail"] = self._t("q_skipped")
         else:
             job["site_name"] = info.get("display_name") or ""
         self._update_queue_row(i)
@@ -3210,7 +3231,8 @@ class NovelDownloaderApp(ctk.CTk):
             job["epub"] = self._epub_path
             job["err_kind"] = err_kind or ("hameln" if self._needs_playwright else "")
             if status in ("error", "skipped"):
-                job["detail"] = self._error_detail() or self._t("q_" + status)
+                job["detail"] = (self._t("q_retired") if err_kind == "retired"
+                                 else self._error_detail() or self._t("q_" + status))
             self._update_queue_row(self._job_i)
             self._update_queue_count()
             # §8: 受信箱の元ファイルを done へ／本棚の該当行を更新する。
@@ -3337,7 +3359,8 @@ class NovelDownloaderApp(ctk.CTk):
             info = detect_site(job["target"])
             job["info"] = info
         if is_unsupported(info):
-            self._queue.put(("precheck", "unsupported"))
+            self._queue.put(("precheck",
+                             "retired" if (info or {}).get("retired") else "unsupported"))
             return
         # 短縮URL（site:null かつ short_url:true）はここで止めない。
         # エンジンが expand_short_url() で展開し、未対応ならその時点で失敗する
@@ -4264,7 +4287,11 @@ class NovelDownloaderApp(ctk.CTk):
         self._site_info = info or {}
         self._site_info_url = url
         name = (info or {}).get("display_name") or ""
-        if is_unsupported(info):
+        if (info or {}).get("retired"):
+            # 「未対応」と区別する。サポートを終えた理由は押したときに出す
+            self.lbl_site.configure(text=self._t("site_retired", name=name),
+                                    text_color=("#b3261e", "#f2b8b5"))
+        elif is_unsupported(info):
             self.lbl_site.configure(text=self._t("site_ng"), text_color=("#b3261e", "#f2b8b5"))
         elif (info or {}).get("site") is None:
             # 短縮URL。開いてみないと分からないので赤にはしない

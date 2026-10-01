@@ -333,6 +333,10 @@ class MainActivity : AppCompatActivity() {
                 siteBadge.text = getString(R.string.main_badge_detect_error)
             json.optBoolean("needs_playwright") ->
                 siteBadge.text = getString(R.string.main_badge_hameln)
+            // サポートを終えたサイト。下の「短縮URLの可能性」に落とすと押せてしまう
+            json.optBoolean("retired") ->
+                siteBadge.text = getString(R.string.main_badge_retired,
+                                           json.optString("display_name"))
             !json.isNull("site") -> {
                 detectedUrl = json.optString("normalized_url", input).ifEmpty { input }
                 detectedSiteName = json.optString("display_name")

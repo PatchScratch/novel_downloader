@@ -19,7 +19,6 @@
 | [野いちご](https://www.no-ichigo.jp/) | `https://www.no-ichigo.jp/book/nXXXXXX` | requests, beautifulsoup4 |
 | [ハーメルン](https://syosetu.org/) | `https://syosetu.org/novel/XXXXXXX/` | requests, beautifulsoup4, playwright |
 | [ノベマ！](https://novema.jp/) | `https://novema.jp/book/nXXXXXX` | requests, beautifulsoup4 |
-| [ノベルアップ＋](https://novelup.plus/) | `https://novelup.plus/story/XXXXXXXXX` | requests, beautifulsoup4 |
 | [ステキブンゲイ](https://sutekibungei.com/) | `https://sutekibungei.com/novels/XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX` | requests, beautifulsoup4 |
 | [NOVEL DAYS](https://novel.daysneo.com/) | `https://novel.daysneo.com/works/XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX.html` | requests, beautifulsoup4 |
 | [青空文庫](https://www.aozora.gr.jp/)（旧） | `https://www.aozora.gr.jp/cards/XXXXXX/cardXXXXXX.html` | 不要（stdlib のみ） |
@@ -30,6 +29,21 @@
 | [ソリスピア](https://solispia.com/) | `https://solispia.com/title/XXXX` | requests, beautifulsoup4 |
 | [berry's cafe](https://www.berrys-cafe.jp/) | `https://www.berrys-cafe.jp/book/nXXXXXXX` | requests, beautifulsoup4 |
 | [monogatary.com](https://monogatary.com/) | `https://monogatary.com/story/XXXXXXX` | requests |
+
+### サポートを終了したサイト
+
+| サイト | 終了した版 | 理由 |
+|---|---|---|
+| ノベルアップ＋ | v2.18.0 | 運営がブラウザ以外からのアクセスを人間の確認（CAPTCHA）で止めるようになったため |
+
+**このツールは、運営が「人間に読んでほしい」と明確に示しているサイトからは、自動ダウンロードを行いません。** 利用規約に自動取得の禁止が書かれていなくても同じです。CAPTCHA のように人間だけを通す仕組みは、その意思表示だと受け止めています。ブラウザの自動操作や CAPTCHA の自動解答などで、こうした仕組みをくぐり抜けることもしません。
+
+Web 小説投稿サイトの運営にはさまざまな形があります。たとえば広告で運営しているサイトでは、人間が実際にページを訪れること自体に価値があります。このツールは、そうした運営を妨げることを意図していません。
+
+サポートを終了したサイトの URL を渡すと、ツールはダウンロードせずに理由を表示して終了します（GUI・Android 版も同様）。
+
+- これまでに保存した `.txt` から ePub を作り直す `--from-file` は、引き続き使えます（通信しないため）
+- `--append` / `--check-update` / `--watch` などの、サイトに取りに行く機能は使えません。作品はブラウザでお読みください
 
 ## 機能
 
@@ -81,10 +95,11 @@
 - 本文中の挿絵を ePub に埋め込み
   - エブリスタ（v2.5.0）
   - NOVEL DAYS（v2.6.0）— サムネイルではなく原寸版を優先取得する
-  - 小説家になろう・アルファポリス・ノベルアップ＋（v2.7.0）
+  - 小説家になろう・アルファポリス（v2.7.0）
   - 挿絵は `.txt` にも青空文庫の図タグとして記録され、同じ画像を複数回使っても取得は 1 回だけ
 - **Windows GUI（`novel_downloader_gui.py`）に受信箱・本棚を追加**（v2.14.0）。詳しくは後述の「Windows GUI」
 - **macOS 対応**（v2.17.0）：CLI・GUI の動かし方と、`.app` にして配布する手順を [`MACOS_SETUP.md`](MACOS_SETUP.md) にまとめた
+- **ノベルアップ＋のサポートを終了**（v2.18.0）。理由は「[サポートを終了したサイト](#サポートを終了したサイト)」
 - **Android 版のダウンロード履歴から、作品ページを開く・新着チェック・新着の取得**（v2.17.0）。新着は差分だけを追記して同じファイルを上書きする。`.txt` と `.epub` を常に保存し、設定に「挿絵を取り込まない」を追加
 - 取得話数の範囲指定（`--start` / `--end`）
 - テキスト出力の改行コード指定（`--newline`：`os`=OS標準 / `lf` / `crlf`）
@@ -171,9 +186,6 @@ python novel_downloader.py https://syosetu.org/novel/XXXXXXX/
 
 # ノベマ！
 python novel_downloader.py https://novema.jp/book/nXXXXXX
-
-# ノベルアップ＋
-python novel_downloader.py https://novelup.plus/story/XXXXXXXXX
 
 # ステキブンゲイ
 python novel_downloader.py https://sutekibungei.com/novels/XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
@@ -298,7 +310,7 @@ URL 欄に貼り付けて大きなボタンを押すだけで完了します。�
 
 - **想定ユーザー**: PC の CLI を使わない層。スマホのブラウザで見つけた Web 小説を、その場で ePub / テキストにして読みたい人
 - **提供価値**: 「URL を渡す → 数分待つ → ダウンロードフォルダに ePub ができている」だけの体験。オプションの海は見せない
-- **対象サイト**: CLI 版の対応 17 サイトのうち**ハーメルンを除く 16 サイト**（playwright 非搭載のため）
+- **対象サイト**: CLI 版の対応 16 サイトのうち**ハーメルンを除く 15 サイト**（playwright 非搭載のため）
 
 ![スクリーンショットAndroid apk](Screenshot_Android_noveldownloader.jpg)
 
@@ -357,7 +369,7 @@ URL 欄に貼り付けて大きなボタンを押すだけで完了します。�
 
 | 単位 | サイト |
 |---|---|
-| 話 | 小説家になろう・カクヨム・アルファポリス・ハーメルン・monogatary.com・ノベルアップ＋・ステキブンゲイ・NOVEL DAYS・ソリスピア・ノベマ！ |
+| 話 | 小説家になろう・カクヨム・アルファポリス・ハーメルン・monogatary.com・ステキブンゲイ・NOVEL DAYS・ソリスピア・ノベマ！ |
 | 章 | ネオページ・野いちご・berry's cafe |
 | ページ | エブリスタ |
 | 非対応 | プロジェクト杉田玄白・結城浩翻訳の部屋・青空文庫 |
@@ -397,7 +409,6 @@ GUI（`novel_downloader_gui.py`）がエンジンを呼び出すために使う�
 | 野いちご | `#FA8296` |
 | ハーメルン | `#6E654C` |
 | ノベマ！ | `#595757` |
-| ノベルアップ＋ | `#0CBF97` |
 | ステキブンゲイ | `#E4097D` |
 | NOVEL DAYS | `#CBA13F` |
 | 青空文庫 | `#000066` |

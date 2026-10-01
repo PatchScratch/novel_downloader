@@ -23,7 +23,17 @@ Windows GUI (`novel_downloader_gui.py`): use the **Japanese / English** control 
 
 ## Supported sites
 
-The engine still targets Japanese posting sites (Syosetu / Narou, Kakuyomu, Alphapolis, Estar, Hameln, Novema, Novelup+, and others listed in the Japanese README). Pass the work URL; the site is detected automatically. Single-episode Narou works, which have no table-of-contents page, are handled as of v2.14.0.
+The engine still targets Japanese posting sites (Syosetu / Narou, Kakuyomu, Alphapolis, Estar, Hameln, Novema, and others listed in the Japanese README). Pass the work URL; the site is detected automatically. Single-episode Narou works, which have no table-of-contents page, are handled as of v2.14.0.
+
+### Sites no longer supported
+
+| Site | Ended in | Reason |
+|---|---|---|
+| Novel Up Plus (ノベルアップ＋) | v2.18.0 | The site now stops non-browser access with a human check (CAPTCHA) |
+
+**This tool does not download from sites whose operators clearly signal that they want their pages read by people**, even when the terms of service do not forbid automated access. A human-only check such as a CAPTCHA is taken as that signal, and the tool does not try to get around it (no browser automation, no CAPTCHA solving). Some sites, for example those funded by advertising, depend on people actually visiting their pages; this tool has no intention of interfering with that.
+
+Passing a URL from such a site prints the reason and exits without downloading (the GUI and the Android app do the same). `--from-file` still rebuilds an ePub from a `.txt` you already have, since it does not touch the network; `--append`, `--check-update` and `--watch` no longer work for those works.
 
 ## Desktop GUI
 

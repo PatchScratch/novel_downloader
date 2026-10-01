@@ -50,7 +50,6 @@ novel_downloader.py
     野いちご        https://www.no-ichigo.jp/book/nXXXXXX
     ハーメルン      https://syosetu.org/novel/XXXXXXX/
     ノベマ！        https://novema.jp/book/nXXXXXX
-    ノベルアップ＋  https://novelup.plus/story/XXXXXXXXX
     ステキブンゲイ  https://sutekibungei.com/novels/XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
     NOVEL DAYS      https://novel.daysneo.com/works/XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX.html
     ネオページ      https://www.neopage.com/book/XXXXXXXXXXXXXXXXX
@@ -368,10 +367,6 @@ _MESSAGES_EN = {
         "Error: downloading from Novema! requires requests and beautifulsoup4.",
     "エラー: ノベマ！の作品URLとして認識できません: {work_url}":
         "Error: not recognized as a Novema! work URL: {work_url}",
-    "エラー: ノベルアップ＋のダウンロードには requests と beautifulsoup4 が必要です。":
-        "Error: downloading from Novelup+ requires requests and beautifulsoup4.",
-    "エラー: ノベルアップ＋の作品URLとして認識できません: {work_url}":
-        "Error: not recognized as a Novelup+ work URL: {work_url}",
     "エラー: ハーメルンのダウンロードには beautifulsoup4 が必要です。":
         "Error: downloading from Hameln requires beautifulsoup4.",
     "エラー: ハーメルンのダウンロードには playwright が必要です。":
@@ -390,8 +385,12 @@ _MESSAGES_EN = {
         "Error: downloading from Project Sugita Genpaku requires requests and beautifulsoup4.",
     "エラー: 作品が見つかりません（HTTP 404）。URLを確認してください: {url}":
         "Error: Work not found (HTTP 404). Check the URL: {url}",
-    "ノベルアップ＋がブラウザ確認（AWS WAF）を導入したため、このツールからは取得できません: {url}":
-        "Novel Up Plus now requires a browser check (AWS WAF), so this tool cannot download from it: {url}",
+    "エラー: {label}は v{ver} でサポートを終了しました。{reason}ため、運営の意図を尊重して自動ダウンロードは行いません。作品はブラウザでお読みください。":
+        "Error: support for {label} ended in v{ver} because {reason}. To respect the operator's intent, this tool no longer downloads from it. Please read the work in your browser.",
+    "{label}は v{ver} でサポートを終了しました":
+        "Support for {label} ended in v{ver}",
+    "運営がブラウザ以外からのアクセスを人間の確認（CAPTCHA）で止めるようになった":
+        "the site now stops non-browser access with a human check (CAPTCHA)",
     "エラー: 作品トップページへのリンクが見つかりません。作品URLを直接指定してください。":
         "Error: could not find a link to the work's top page. Please pass the work URL directly.",
     "エラー: 取得に失敗しました（HTTP {code} {reason}）: {url}":
@@ -1135,7 +1134,7 @@ def _extract_meta_from_txt(txt_path: str) -> dict:
 
 
 # --start で途中から取得しているか（design_gui_v2.md §8.19）。
-# meta は 17 個の run_* がそれぞれ組み立てるので、全部に配るのではなく
+# meta は 16 個の run_* がそれぞれ組み立てるので、全部に配るのではなく
 # 唯一の合流点である aozora_header() で差し込む。
 _START_OFFSET = 0
 
@@ -1218,7 +1217,7 @@ _CHECK_UPDATE_MODE: bool = False   # --check-update 実行中に True
 def _show_episode_list(title: str, author: str, ep_titles: list[str]) -> None:
     """--list-only / --check-update モード: エピソード一覧を表示または取得する。
 
-    `--progress-json` 指定時は `episodes` イベントも出す。**全 17 サイトが
+    `--progress-json` 指定時は `episodes` イベントも出す。**全 16 サイトが
     ここを通る唯一の地点**なので、発火点はこの 1 箇所で足りる
     （`workinfo` / `checkresult` と同じ考え方・design_gui_v2.md §8.15）。
 
@@ -3515,7 +3514,7 @@ def build_epub(
     ep_titles = [ep["title"] for ep in episodes]
     synopsis  = _normalize_synopsis(synopsis)   # 表紙ページ・dc:description 共通
     # 地の色は --cover-bg > meta["theme_color"] > サイト既定色 の順で決まる。
-    # ここで一括解決するので 17 個の run_* は cover_bg=args.cover_bg のままでよい。
+    # ここで一括解決するので 16 個の run_* は cover_bg=args.cover_bg のままでよい。
     cover_bg  = _resolve_cover_bg(cover_bg, meta, site_name)
 
     # 表紙画像：外部ファイル指定があればそちらを使用、なければ自動生成
@@ -4563,46 +4562,6 @@ def _days_meta_from_page(soup) -> dict:
         v = _iso_date(_labeled_value(text, label))
         if v:
             meta[key] = v
-    return meta
-
-
-def _novelup_meta_from_page(soup) -> dict:
-    """ノベルアップ＋のメタデータ（table.storyMeta に作品情報が集約されている）。"""
-    meta: dict = {"site": "ノベルアップ＋"}
-    table = soup.find("table", class_="storyMeta")
-    if not table:
-        return meta
-    text = table.get_text("\n")
-
-    _set_int(meta, "char_count", _labeled_value(text, "文字数"))
-    _set_int(meta, "episode_count", _labeled_value(text, "総エピソード数"))
-    for key, label in (("published", "初掲載日"), ("updated", "最終更新日")):
-        v = _iso_date(_labeled_value(text, label))
-        if v:
-            meta[key] = v
-    # 完結日の欄は完結していないと「-」になる
-    fin = _labeled_value(text, "完結日")
-    if _iso_date(fin):
-        meta["serial_status"] = "完結"
-    elif fin:
-        meta["serial_status"] = "連載中"
-
-    # タグ行は「タグ」見出しの直後にリンクが並ぶ
-    tag_cell = None
-    for th in table.find_all(["th", "td"]):
-        if th.get_text(strip=True) == "タグ":
-            tag_cell = th.find_next_sibling(["td", "th"])
-            break
-    if tag_cell:
-        vals = [a.get_text(strip=True) for a in tag_cell.find_all("a")]
-        vals = [v for v in vals if v]
-        if vals:
-            meta["tags"] = vals[:10]
-
-    warns = [w for w in ("残酷描写あり", "暴力描写あり", "性的表現あり") if w in text]
-    if warns:
-        meta["content_warnings"] = [w.replace("あり", "") for w in warns]
-        meta["age_rating"] = "R15"
     return meta
 
 
@@ -7866,284 +7825,6 @@ def run_novema(args):
 
 
 # ══════════════════════════════════════════
-#  ノベルアップ＋スクレイパー
-# ══════════════════════════════════════════
-
-_NOVELUP_BASE = "https://novelup.plus"
-_NOVELUP_HEADERS = {
-    "User-Agent": UA,
-    "Accept-Language": "ja,en;q=0.9",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Referer": "https://novelup.plus/",
-}
-
-
-def _is_waf_challenge(resp) -> bool:
-    """AWS WAF のブラウザ確認（JavaScript チャレンジ）が返ってきたかを判定する。
-
-    チャレンジは HTTP 202 で返るため raise_for_status() を素通りし、
-    本文の無いページを解析して「一覧を取得できない」と誤った理由で止まる。
-    requests では通過できない（JS が発行する aws-waf-token が要る）ので、
-    リトライせずに理由を明示して止めるために使う。
-    """
-    if resp.headers.get("x-amzn-waf-action", "").lower() == "challenge":
-        return True
-    return resp.status_code == 202 and ("awswaf" in resp.text or "gokuProps" in resp.text)
-
-
-def novelup_fetch(session, url, retries=3):
-    """ノベルアップ＋のページを取得して (BeautifulSoup, html) を返す。"""
-    _check_abort()
-    for attempt in range(retries):
-        try:
-            resp = session.get(url, timeout=30)
-        except Exception as e:
-            if attempt == retries - 1:
-                raise RuntimeError(f"取得失敗: {url} — {e}") from e
-            _sleep(2)
-            continue
-        # 2026-10 からサイト全体が AWS WAF の後ろに入った。再試行しても通らない
-        if _is_waf_challenge(resp):
-            raise RuntimeError(T(
-                "ノベルアップ＋がブラウザ確認（AWS WAF）を導入したため、"
-                "このツールからは取得できません: {url}").format(url=url))
-        try:
-            resp.raise_for_status()
-            resp.encoding = resp.apparent_encoding or "utf-8"
-            return BeautifulSoup(resp.text, "html.parser"), resp.text
-        except Exception as e:
-            if attempt == retries - 1:
-                raise RuntimeError(f"取得失敗: {url} — {e}") from e
-            _sleep(2)
-
-
-def novelup_get_work_info(soup) -> dict:
-    """作品情報（タイトル・著者・あらすじ）を返す。"""
-    og_title = soup.find("meta", property="og:title")
-    title, author = "", ""
-    if og_title:
-        content = og_title.get("content", "")
-        # "タイトル（著者名） | 小説投稿サイトノベルアップ＋" 形式
-        m = re.match(r"^(.+?)（(.+?)）", content)
-        if m:
-            title  = m.group(1).strip()
-            author = m.group(2).strip()
-    if not title:
-        h1 = soup.find("h1", class_="storyTitle")
-        title = h1.get_text(strip=True) if h1 else ""
-    if not author:
-        a_author = soup.find("a", class_="storyAuthor")
-        author = a_author.get_text(strip=True) if a_author else ""
-
-    synopsis_div = soup.find("div", class_="novel_synopsis")
-    synopsis = synopsis_div.get_text(strip=True) if synopsis_div else ""
-
-    info = {"title": title, "author": author, "description": synopsis}
-    info.update(_novelup_meta_from_page(soup))
-    return info
-
-
-def novelup_get_episode_list(soup) -> list:
-    """
-    エピソード一覧を [(episode_id, episode_title, chapter), ...] で返す。
-    div.episodeList 内の div.episodeListItem を順に走査し、
-    class="episodeListItem chapter" は章ヘッダーとして current_chapter を更新する。
-    """
-    ep_list_div = soup.find("div", class_="episodeList")
-    if not ep_list_div:
-        return []
-    episodes = []
-    current_chapter = ""
-    for item in ep_list_div.find_all("div", class_="episodeListItem"):
-        classes = item.get("class", [])
-        if "chapter" in classes:
-            current_chapter = item.get_text(strip=True)
-            continue
-        a = item.find("a", class_="episodeTitle")
-        if not a:
-            continue
-        href = a.get("href", "")
-        m = re.search(r"/story/[^/]+/(\d+)$", href)
-        if m:
-            episodes.append((m.group(1), a.get_text(strip=True), current_chapter))
-    return episodes
-
-
-def novelup_html_to_aozora(content_p, images: dict = None, seen: dict = None,
-                           delay: float = 1.5) -> str:
-    """本文 <p id="episode_content"> を青空文庫書式テキストに変換する。
-
-    images に dict を渡すと本文中の挿絵を取得して図タグへ変換する。
-    """
-    if images is not None:
-        _replace_imgs_with_fig_tags(content_p, _NOVELUP_BASE,
-                                    _NOVELUP_BASE + "/", images, seen, delay)
-
-    # ルビ変換: <ruby><rb>漢字</rb><rp>(</rp><rt>かんじ</rt></ruby> → 漢字《かんじ》
-    for ruby in content_p.find_all("ruby"):
-        rb  = ruby.find("rb")
-        rt  = ruby.find("rt")
-        if rt:
-            base    = rb.get_text() if rb else ""
-            rt_text = rt.get_text()
-            prev = _bs4_prev_text(ruby)
-            pipe = "|" if _ruby_needs_pipe(base, prev, rt_text) else ""
-            ruby.replace_with(f"{pipe}{base}《{rt_text}》")
-        else:
-            ruby.replace_with(ruby.get_text())
-
-    # テキスト取得（\n 区切りの段落）
-    text  = content_p.get_text()
-    lines = text.split("\n")
-    out_lines  = []
-    prev_blank = False
-    for line in lines:
-        stripped = line.strip()
-        if stripped:
-            out_lines.append(stripped)
-            prev_blank = False
-        else:
-            if not prev_blank:
-                out_lines.append("")
-            prev_blank = True
-
-    while out_lines and out_lines[0] == "":
-        out_lines.pop(0)
-    while out_lines and out_lines[-1] == "":
-        out_lines.pop()
-
-    return "\n".join(out_lines)
-
-
-def novelup_get_episode_body(soup, images: dict = None, seen: dict = None,
-                             delay: float = 1.5) -> str:
-    """エピソードページから本文（前書き＋本文＋後書き）を青空文庫書式で返す。"""
-    parts = []
-
-    foreword = soup.find("div", class_="novel_foreword")
-    if foreword:
-        text = foreword.get_text(strip=True)
-        if text:
-            parts.append(text)
-
-    content_p = soup.find("p", id="episode_content")
-    if content_p:
-        parts.append(novelup_html_to_aozora(content_p, images, seen, delay))
-    else:
-        parts.append("（本文取得失敗）")
-
-    afterword = soup.find("div", class_="novel_afterword")
-    if afterword:
-        text = afterword.get_text(strip=True)
-        if text:
-            parts.append(text)
-
-    return "\n\n".join(parts)
-
-
-def run_novelup(args):
-    """ノベルアップ＋小説のダウンロード処理。"""
-    if not _KAKUYOMU_AVAILABLE:
-        print(T("エラー: ノベルアップ＋のダウンロードには requests と beautifulsoup4 が必要です。"))
-        print("  pip install requests beautifulsoup4")
-        sys.exit(1)
-
-    work_url = args.url.rstrip("/")
-    wid_m = re.search(r"/story/(\d+)$", work_url)
-    if not wid_m:
-        print(T("エラー: ノベルアップ＋の作品URLとして認識できません: {work_url}").format(work_url=work_url))
-        sys.exit(1)
-    work_id = wid_m.group(1)
-
-    session = requests.Session()
-    session.headers.update(_NOVELUP_HEADERS)
-
-    _print_stage(1, f"作品情報を取得中: {work_url}", blank_before=True)
-    top_soup, _ = novelup_fetch(session, work_url)
-    info = novelup_get_work_info(top_soup)
-    if info["title"]:
-        _print_field("タイトル", f"{info['title']}", indent=6, width=8)
-    if info["author"]:
-        _print_field("著者", f"{info['author']}", indent=6, width=8)
-
-    episodes = novelup_get_episode_list(top_soup)
-    if not episodes:
-        print(T("エラー: エピソード一覧を取得できませんでした。"))
-        sys.exit(1)
-    total_eps = len(episodes)
-    _print_field("エピソード数", f"{total_eps}", indent=6, width=12)
-
-    start_ep = max(1, args.start or 1)
-    end_ep   = min(total_eps, args.end or total_eps)
-    target_eps = episodes[start_ep - 1:end_ep]
-    if getattr(args, "list_only", False):
-        _show_episode_list(info["title"], info["author"], [ep[1] for ep in target_eps])
-    _dry_run_exit(args, info["title"], info["author"], total_eps)
-
-    header   = aozora_header(info["title"], info["author"], info["description"],
-                             source_url=work_url, meta=info)
-    colophon = aozora_colophon(info["title"], work_url, "ノベルアップ＋")
-    base      = _apply_output_dir(args, args.output or safe_filename(info["title"], "novelup_novel"))
-    txt_path  = base + ".txt"
-    epub_path = base + _epub_ext(args)
-    sections, epub_episodes, target_eps = _apply_resume(args, txt_path, target_eps)
-    if not target_eps and sections:
-        print("\n[情報] 新規エピソードがありません。ファイルは上書きしません。")
-        return
-
-    _print_stage(2, f"エピソードを取得中（{len(target_eps)} / {total_eps}）...")
-
-    got_eps       = 0
-    nup_images    = _inline_images_dict(args)
-    nup_img_seen  = {}
-
-    for ep_i, (ep_id, ep_title, ep_chapter) in enumerate(target_eps, 1):
-        print(f"  [{ep_i:3d}/{len(target_eps)}] {ep_title}")
-        _progress(ep_i, len(target_eps), f"{ep_title}")
-        try:
-            ep_url  = f"{_NOVELUP_BASE}/story/{work_id}/{ep_id}"
-            ep_soup, _ = novelup_fetch(session, ep_url)
-            body = novelup_get_episode_body(ep_soup, nup_images, nup_img_seen,
-                                            args.delay)
-        except RuntimeError as e:
-            print(T("    [エラー] {e}").format(e=e))
-            body = "（取得失敗）"
-
-        body = normalize_tate(body)
-        sec_title = aozora_chapter_title(ep_title)
-        sections.append(f"{sec_title}\n\n{body}\n")
-        epub_episodes.append({"title": ep_title, "body": body,
-                               "group": ep_chapter or None})
-        got_eps += 1
-        if ep_i < len(target_eps):
-            _sleep(args.delay)
-
-    _print_stage(3, "テキスト・ePub を生成中...")
-    write_file(txt_path, header, sections, colophon, args.encoding, getattr(args, "newline", "os"))
-
-    full_len = (len(header)
-                + sum(len(s) for s in sections)
-                + len(PAGE_BREAK) * max(len(sections) - 1, 0)
-                + len(colophon))
-    _print_text_done(txt_path)
-    _print_field("取得エピソード", f"{got_eps} / {len(target_eps)}", indent=3, width=14)
-    _print_field("総文字数", f"{full_len:,} 文字", indent=3, width=14)
-
-    if not getattr(args, "no_epub", False):
-        _print_epub_start()
-        build_epub(epub_path, info["title"], info["author"],
-                   info["description"],
-                   work_url, "ノベルアップ＋", epub_episodes,
-                   images=nup_images or None,
-                   cover_bg=args.cover_bg, meta=info,
-                   cover_image_path=getattr(args, "cover_image", None) or "",
-                   font_path=getattr(args, "font", "") or "",
-                   toc_at_end=getattr(args, "toc_at_end", False),
-                   horizontal=getattr(args, "horizontal", False))
-        _print_epub_done(epub_path)
-
-
-# ══════════════════════════════════════════
 #  ステキブンゲイ：定数・ヘッダー
 # ══════════════════════════════════════════
 
@@ -10845,10 +10526,11 @@ def _follow_one_redirect(url: str) -> tuple[str, str | None]:
 
 
 # ── og:image の品質判定（design_cover_source.md §4）──────────────────────
-# 17 サイトのうち 8 サイトは og:image が「表紙」ではない。なろう・カクヨム・
+# 16 サイトのうち 7 サイトは og:image が「表紙」ではない。なろう・カクヨム・
 # ハーメルン・ソリスピア・ネオページ・エブリスタは 1200×630 等の横長シェア用
-# カード、ノベルアップ＋と青空文庫はサイト共通の画像を返す。無条件に採用すると
-# 表紙が壊れるので、採用前に検査して落ちたら自動生成の表紙へ回す。
+# カード、青空文庫はサイト共通の画像を返す（サポートを終えたノベルアップ＋も
+# 同様だった）。無条件に採用すると表紙が壊れるので、採用前に検査して落ちたら
+# 自動生成の表紙へ回す。
 _COVER_REJECT_URL_PAT = re.compile(r"(no_image|/common/|top_logo)", re.I)
 _COVER_MIN_WIDTH = 200      # NOVEL DAYS の 200×320 が最大解像度なので 200 は通す
 
@@ -11232,17 +10914,6 @@ def normalize_url(url: str, site: str) -> str:
             _print_normalized(url, top_url)
             return top_url
 
-    elif site == "novelup":
-        # /story/NNNNN/MMMMM の形式はトップページへ正規化
-        m = re.match(
-            r"(https?://novelup\.plus/story/\d+)/\d+/?$",
-            url.rstrip("/"), re.I
-        )
-        if m:
-            top_url = m.group(1)
-            _print_normalized(url, top_url)
-            return top_url
-
     elif site == "sutekibungei":
         # /novels/{work_uuid}/{episode_uuid} の形式はトップページへ正規化
         m = re.match(
@@ -11300,7 +10971,6 @@ _SITE_DISPATCH: dict[str, tuple[str, str, callable]] = {
     "monogatary": ("monogatary.com",       "#231815", run_monogatary),
     "hameln":     ("ハーメルン",           "#6E654C", run_hameln),
     "novema":     ("ノベマ！",             "#595757", run_novema),
-    "novelup":    ("ノベルアップ＋",       "#0CBF97", run_novelup),
     "sutekibungei": ("ステキブンゲイ",     "#E4097D", run_sutekibungei),
     "days":       ("NOVEL DAYS",           "#CBA13F", run_days),
     "aozora":     ("青空文庫",             "#000066", run_aozora),
@@ -11311,10 +10981,42 @@ _SITE_DISPATCH: dict[str, tuple[str, str, callable]] = {
 }
 
 # 表示名 → サイト既定の表紙色。build_epub は site_name（表示名）しか受け取らないので
-# 逆引きできるようにしておく。これがあるおかげで 17 個の run_* を触らずに済む。
+# 逆引きできるようにしておく。これがあるおかげで 16 個の run_* を触らずに済む。
 _SITE_COLOR_BY_LABEL: dict[str, str] = {
     label: color for label, color, _fn in _SITE_DISPATCH.values()
 }
+
+# サポートを終えたサイト（README「サポートを終了したサイト」）。
+# 運営が人間以外のアクセスを望まないと明確に示したサイトは、利用規約に
+# 書かれていなくても自動ダウンロードしない。detect_site() はこれらも判定して
+# ID を返すが _SITE_DISPATCH には無いのでダウンロードはされない。
+# 「未対応のURL」と区別して、終えた理由を利用者に伝えるために残している。
+# (表示名, 既定の表紙色, 終了した版, 理由)
+# 理由は「〜ため、」に続く形で書く。T() は表示言語が決まってから引くよう
+# lambda で遅らせる（読み込み時に引くと --lang が効かない）
+_RETIRED_SITES: dict[str, tuple] = {
+    "novelup": ("ノベルアップ＋", "#0CBF97", "2.18.0",
+                lambda: T("運営がブラウザ以外からのアクセスを人間の確認（CAPTCHA）で止めるようになった")),
+}
+
+# 手元の .txt から --from-file で作り直したとき、表紙をこれまでと同じ色にする
+for _label, _color, _ver, _reason in _RETIRED_SITES.values():
+    _SITE_COLOR_BY_LABEL.setdefault(_label, _color)
+
+
+def _retired_site_message(site: str) -> str:
+    """サポートを終えたサイトの案内（「エラー: 」で始まる・GUI が拾う契約）。"""
+    label, _color, ver, reason = _RETIRED_SITES[site]
+    return T("エラー: {label}は v{ver} でサポートを終了しました。{reason}ため、"
+             "運営の意図を尊重して自動ダウンロードは行いません。"
+             "作品はブラウザでお読みください。").format(
+        label=label, ver=ver, reason=reason())
+
+
+def _retired_site_short(site: str) -> str:
+    """一括確認・ウォッチの結果欄に入れる短い理由。"""
+    label, _color, ver, _reason = _RETIRED_SITES[site]
+    return T("{label}は v{ver} でサポートを終了しました").format(label=label, ver=ver)
 
 
 def _resolve_cover_bg(cover_bg: str | None, meta: dict | None, site_name: str) -> str:
@@ -11400,6 +11102,9 @@ def shelf_scan(dir_path: str) -> list[dict]:
             sid = _safe(lambda: detect_site(url), "unknown")
             if sid in _SITE_DISPATCH:
                 site, display = sid, _SITE_DISPATCH[sid][0]
+            elif sid in _RETIRED_SITES:
+                # 本棚には配信元を出す。site は null（＝続きを取得できない）
+                display = _RETIRED_SITES[sid][0]
         # 話数と最終話の題を 1 回の読み込みから取る（4MB 級の .txt を二度読まない）
         secs, eps = _safe(lambda: _load_existing_txt(path), ([], []))
         out.append({
@@ -11532,6 +11237,9 @@ def _check_update_one_impl(txt_path: str, delay: float = 1.5) -> dict:
         result["error"] = f"URL 解析失敗: {e}"
         return result
 
+    if site in _RETIRED_SITES:
+        result["error"] = _retired_site_short(site)
+        return result
     entry = _SITE_DISPATCH.get(site)
     if not entry:
         result["error"] = f"未対応サイト: {site}"
@@ -11612,6 +11320,9 @@ def _append_one(txt_path: str, base_args: argparse.Namespace) -> dict:
         result["error"] = f"URL 解析失敗: {e}"
         return result
 
+    if site in _RETIRED_SITES:
+        result["error"] = _retired_site_short(site)
+        return result
     entry = _SITE_DISPATCH.get(site)
     if not entry:
         result["error"] = f"未対応サイト: {site}"
@@ -11785,6 +11496,9 @@ def _check_update_url(url: str, n_cached: int, delay: float) -> dict:
         result["error"] = f"URL 解析失敗: {e}"
         return result
 
+    if site in _RETIRED_SITES:
+        result["error"] = _retired_site_short(site)
+        return result
     entry = _SITE_DISPATCH.get(site)
     if not entry:
         result["error"] = f"未対応サイト: {site}"
@@ -12338,11 +12052,17 @@ def _main(argv=None):
                 # site:null でも「開けば分かるかもしれない」ことを呼び出し側に伝える
                 "short_url": False,
                 # 一覧の行番号をそのまま --start に渡せるか（§8.19）
-                "start_from_list": False}
+                "start_from_list": False,
+                # サポートを終えたサイト。site は null のまま（＝取得できない）で、
+                # display_name と案内文を添えて「未対応」と区別させる
+                "retired": False, "retired_message": None}
         try:
             _res["short_url"] = is_short_url(_url)
             _site = detect_site(_url)
-            if _site != "unknown" and _site in _SITE_DISPATCH:
+            if _site in _RETIRED_SITES:
+                _res.update(display_name=_RETIRED_SITES[_site][0], retired=True,
+                            retired_message=_retired_site_message(_site))
+            elif _site != "unknown" and _site in _SITE_DISPATCH:
                 _label = _SITE_DISPATCH[_site][0]
                 # normalize_url は話数URLで [情報]… を print するため stdout を抑制
                 with contextlib.redirect_stdout(io.StringIO()):
@@ -12762,6 +12482,9 @@ def _main(argv=None):
                         "new_titles": [ep["title"] for ep in _dl_epub],
                         "error": "",
                     }], _wh_url, _wh_fmt)
+            elif site in _RETIRED_SITES:
+                print(_retired_site_message(site), file=sys.stderr)
+                sys.exit(1)
             else:
                 print(T("エラー: 対応しているURLを指定してください。"))
                 for s_id, (s_label, _, _) in _SITE_DISPATCH.items():
